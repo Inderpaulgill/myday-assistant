@@ -1,6 +1,36 @@
-name: Enable core library desugaring
-    run: |
-      python3 - <<'PY'
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Generate Android platform files
+        run: flutter create . --platforms=android
+
+      - name: Enable core library desugaring
+        run: |
+          python3 - <<'PY'
       from pathlib import Path
 
       p = Path("android/app/build.gradle")
@@ -28,3 +58,16 @@ name: Enable core library desugaring
       p.write_text(s)
       print("Desugaring configuration updated.")
       PY
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: myday-assistant-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
