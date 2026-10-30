@@ -1,73 +1,30 @@
-name: Build Android APK
+name: Enable core library desugaring
+    run: |
+      python3 - <<'PY'
+      from pathlib import Path
 
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
+      p = Path("android/app/build.gradle")
+      if not p.exists():
+          p = Path("android/app/build.gradle.kts")
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+      if not p.exists():
+          raise SystemExit("Android Gradle file not found")
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      s = p.read_text()
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+      if p.suffix == ".kts":
+          setting = "isCoreLibraryDesugaringEnabled = true"
+          dependency = 'coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")'
+      else:
+          setting = "coreLibraryDesugaringEnabled true"
+          dependency = "coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
+      if "coreLibraryDesugaringEnabled" not in s and "isCoreLibraryDesugaringEnabled" not in s:
+          s = s.replace("compileOptions {", "compileOptions {\n        " + setting, 1)
 
-      - name: Generate Android platform files
-        run: flutter create . --platforms=android
+      if "desugar_jdk_libs" not in s:
+          s = s.replace("dependencies {", "dependencies {\n    " + dependency, 1)
 
-      - name: Enable core library desugaring
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path("android/app/build.gradle")
-          if not p.exists():
-              p = Path("android/app/build.gradle.kts")
-
-          if not p.exists():
-              raise SystemExit("Android Gradle file not found")
-
-          s = p.read_text()
-
-          if p.suffix == ".kts":
-              setting = "isCoreLibraryDesugaringEnabled = true"
-              dependency = 'coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")'
-          else:
-              setting = "coreLibraryDesugaringEnabled true"
-              dependency = "coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
-
-          if "coreLibraryDesugaringEnabled" not in s and "isCoreLibraryDesugaringEnabled" not in s:
-              s = s.replace("compileOptions {", "compileOptions {\n        " + setting, 1)
-
-          if "desugar_jdk_libs" not in s:
-              s = s.replace("dependencies {", "dependencies {\n    " + dependency, 1)
-
-          p.write_text(s)
-          print("Desugaring configuration updated.")
-          PY
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build debug APK
-        run: flutter build apk --debug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: myday-assistant-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
-          if-no-files-found: error
+      p.write_text(s)
+      print("Desugaring configuration updated.")
+      PY
