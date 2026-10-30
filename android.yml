@@ -13,9 +13,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
@@ -29,10 +31,15 @@ jobs:
       - name: Install Android manifest
         run: cp AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
+      - name: Check Android SDK configuration
+        run: |
+          grep -nE 'targetSdk|compileSdk|minSdk' android/app/build.gradle*
+
       - name: Build APK
         run: flutter build apk --debug
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: myday-assistant-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
