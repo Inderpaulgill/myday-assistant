@@ -1,14 +1,93 @@
+```yaml
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
       - name: Generate Android platform files
         run: flutter create . --platforms=android
 
       - name: Enable core library desugaring
-        shell: bash
         run: |
-          GRADLE_FILE="android/app/build.gradle.kts"
-          if [ -f "$GRADLE_FILE" ]; then
-            echo "Generated Kotlin Gradle file: $GRADLE_FILE"
-            grep -n "compileOptions\|dependencies" "$GRADLE_FILE"
-          else
-            echo "Could not find $GRADLE_FILE"
-            exit 1
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/build.gradle")
+          if not p.exists():
+              p = Path("android/app/build.gradle.kts")
+
+          if not p.exists():
+              raise SystemExit("Android Gradle file not found")
+
+          s = p.read_text()
+
+          if p.suffix == ".kts":
+              setting = "isCoreLibraryDesugaringEnabled = true"
+              dependency = 'coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")'
+          else:
+              setting = "coreLibraryDesugaringEnabled true"
+              dependency = "coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'"
+
+          if "coreLibraryDesugaringEnabled" not in s and "isCoreLibraryDesugaringEnabled" not in s:
+              s = s.replace("compileOptions {", "compileOptions {\n        " + setting, 1)
+
+          if "desugar_jdk_libs" not in s:
+              s = s.replace("dependencies {", "dependencies {\n    " + dependency, 1)
+
+          p.write_text(s)
+          print("Desugaring configuration updated.")
+          PY
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: myday-assistant-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+**Important:** Copy the YAML contents only. Do not include the opening or closing triple-backtick markers.
+
+### Step 3 — Save the file
+
+1. Click the green **Commit changes** button.
+2. Confirm the commit.
+3. Open **Actions**.
+4. Click the newest **Build Android APK** run.
+
+GitHub should now recognise the workflow and start the build.
+
+### Step 4 — Tell me what you see
+
+- If it shows a **yellow circle**, the build is running.
+- If it shows a **green tick**, the build succeeded.
+- If it shows a **red cross**, send me the new error screenshot.
+
+We'll take it one step at a time. We haven't built the APK successfully yet, but this fixes the specific workflow-format problem shown in your screenshot.
